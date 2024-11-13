@@ -1,0 +1,36 @@
+#!/bin/bash 
+
+# rename this script as a bash file with the .sh file extension e.g., fastqc_multqc.sh
+#Make the file.sh executable, allowing it to be run as a program or script by running the command "chmod +x file.sh" 
+
+#Define the path for the paired-end reads
+READS_PATH="/home/UK_Bdiv23B_and_24B_analysis/"
+
+# Define the output folder for FastQC results
+FASTQC_OUTPUT="${READS_PATH}/fastqc_output"
+
+# Create the FastQC output directory if it doesn't exist
+mkdir -p "${FASTQC_OUTPUT}"
+
+# Loop through all paired-end reads in the specified path and run FastQC
+# The script will analyze each fastq.gz file found in the directory
+for file in "${READS_PATH}"/*.fastq.gz; do
+    if [ -e "${file}" ]; then  # Check if the file exists
+        # Run FastQC on each file and direct the output to the fastqc_output folder
+        fastqc "${file}" -o "${FASTQC_OUTPUT}"
+        # Print a message indicating FastQC has been completed for the file
+        echo "FastQC complete for file: ${file}"
+    else
+        echo "No .fastq.gz files found in ${READS_PATH}"
+        break  # Exit the loop if no files are found
+    fi
+done
+
+# Move to the FastQC output directory for the MultiQC analysis
+cd "${FASTQC_OUTPUT}"
+
+# Run MultiQC in the FastQC output directory to summarize all FastQC reports
+multiqc .
+
+# Print a message indicating that MultiQC analysis is complete
+echo "MultiQC analysis complete. Reports generated in ${FASTQC_OUTPUT}"
