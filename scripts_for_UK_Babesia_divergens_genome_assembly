@@ -1,0 +1,179 @@
+# Bioinformatics Scripts for Babesia Genome Analysis
+authors:
+  - Ternenge T. Apaaa
+  - Ben P. Jones
+  - Adam M. Blanchard
+  - Nicholas Johnson
+affiliations:
+  - Vector Borne Diseases, Virology Department, Animal Plant and Health Agency, Woodham Lane, Addlestone, Surrey, KT15 3NB
+  - School of Veterinary Medicine and Science, University of Nottingham, Sutton Bonington, UK
+  - Faculty of Health and Medical Sciences, University of Surrey, Guildford, Surrey, GU2 7XH, UK
+  - Rabies and Viral Zoonoses, Virology Department, Animal Plant and Health Agency, Woodham Lane, Addlestone, Surrey, KT15 3NB
+date: 2024-11-05
+  tools_required:
+    - Bowtie2
+      description: An ultrafast, memory-efficient short read aligner for mapping sequencing reads to a reference genome.
+            
+    - Samtools
+      description: A suite of programs for interacting with high-throughput sequencing data, specifically for manipulating SAM/BAM files.
+        
+    -SPAdes
+      description: A de novo assembler for single-cell and standard sequencing data.
+           
+    - SeqKit
+      description: A fast and versatile toolkit for FASTA/Q file manipulation.
+      installation_command: "conda install -c bioconda seqkit"
+      
+    - spray-and-pray.py
+      description: A tool for sequence identification using blastdb or diamond database.
+     
+    - QUAST
+      description: A quality assessment tool for genome assemblies, providing comprehensive reports.
+      
+commands:
+  - description: Create a folder for the analysis
+    command: mkdir UK_Bdiv23B_and_24B_analysis
+
+  - description: Change to the analysis directory
+    command: cd UK_Bdiv23B_and_24B_analysis/
+
+  - description: Download the SRA toolkit
+    command: wget --output-document sratoolkit.tar.gz https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-ubuntu64.tar.gz --no-check-certificate
+
+  - description: Trimmed reads renamed
+    notes:
+      - Bdiv23B: trim-APHABL-2023-41B-DNA_S78_R1_001.fastq.gz
+      - Bdiv23B: trim-APHABL-2023-41B-DNA_S78_R2_001.fastq.gz
+      - Bdiv24B: [not provided]
+
+  - description: Download Bos taurus reference genome from NCBI
+    commands:
+      - efetch: efetch -db assembly -format fasta -id GCF_002263795 > GCF_002263795.fasta
+      - wget: wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/263/795/GCF_002263795.1_ASM226379v1/GCF_002263795.1_ASM226379v1_genomic.fna.gz
+
+  - description: Build bowtie2 index using the Bos taurus reference genome
+    command: bowtie2-build GCF_002263795.fasta btaurusrefbowtieindx
+
+  - description: APHA-2023-23B bowtie2 alignment and unmapped reads extraction
+    command: |
+      bowtie2 -q -x btaurusrefbowtieindx -1 trim-APHABL-2023-23B-DNA_S75_R1_001.fastq.gz -2 trim-APHABL-2023-23B-DNA_S75_R2_001.fastq.gz -S apha-2023-23B_mapped_unmapped_R1_R2.sam --threads 6 && \
+      samtools view -bS apha-2023-23B_mapped_unmapped_R1_R2.sam > apha-2023-23B_mapped_unmapped_R1_R2.bam && \
+      mkdir 23B_sorted-extracted-assembly && \
+      samtools view -b -f 12 -F 256 apha-2023-23B_mapped_unmapped_R1_R2.bam > 23B_sorted-extracted-assembly/apha-2023-23B_unmapped_R1_R2.bam && \
+      cd 23B_sorted-extracted-assembly/ && \
+      samtools sort -n -m 15G -@ 2 apha-2023-23B_unmapped_R1_R2.bam -o apha-2023-23B_unmapped_R1_R2_sorted.bam && \
+      samtools fastq -@ 8 apha-2023-23B_unmapped_R1_R2_sorted.bam -1 apha-2023-23B_unmapped_R1.fq.gz -2 apha-2023-23B_unmapped_R2.fq.gz && \
+      spades.py -1 apha-2023-23B_unmapped_R1.fq.gz -2 apha-2023-23B_unmapped_R2.fq.gz -o apha-2023-23B_unmapped_spadesassembly -t 12
+
+  - description: APHA-2023-24B bowtie2 alignment and unmapped reads extraction
+    command: |
+      bowtie2 -q -x btaurusrefbowtieindx -1 trim-APHABL-2023-24B-DNA_S76_R1_001.fastq.gz -2 trim-APHABL-2023-24B-DNA_S76_R2_001.fastq.gz -S apha-2023-24B_mapped_unmapped_R1_R2.sam --threads 6 && \
+      samtools view -bS apha-2023-24B_mapped_unmapped_R1_R2.sam > apha-2023-24B_mapped_unmapped_R1_R2.bam && \
+      mkdir 24B_sorted-extracted-assembly && \
+      samtools view -b -f 12 -F 256 apha-2023-24B_mapped_unmapped_R1_R2.bam > 24B_sorted-extracted-assembly/apha-2023-24B_unmapped_R1_R2.bam && \
+      cd 24B_sorted-extracted-assembly/ && \
+      samtools sort -n -m 15G -@ 2 apha-2023-24B_unmapped_R1_R2.bam -o apha-2023-24B_unmapped_R1_R2_sorted.bam && \
+      samtools fastq -@ 8 apha-2023-24B_unmapped_R1_R2_sorted.bam -1 apha-2023-24B_unmapped_R1.fq.gz -2 apha-2023-24B_unmapped_R2.fq.gz && \
+      spades.py -1 apha-2023-24B_unmapped_R1.fq.gz -2 apha-2023-24B_unmapped_R2.fq.gz -o apha-2023-24B_unmapped_spadesassembly -t 12
+
+  - description: Create mapping directory for Babesia divergens
+    command: mkdir -p Bidvergens_mapping && cd Bidvergens_mapping
+
+  - description: Download B. divergens reference genomes
+    commands:
+      - command: "wget [URL_of_B_d divergens_reference_genomes]"
+
+  - description: Concatenate the two fasta files into a single one
+    command: cat *fna > GCA_018398725_1987_GCA_001077455-_1802A_concat.fa
+
+  - description: Build bowtie2 index for B. divergens reference genome
+    command: bowtie2-build GCA_018398725_1987_GCA_001077455-_1802A_concat.fa GCA_018398725_1987_GCA_001077455-_1802A_bowtie2indx
+
+  - description: Copy unmapped reads to the mapping directory
+    command: |
+      cp /home/UK_Bdiv23B_and_24B_analysis/23B_sorted-extracted-assembly/*.gz . && \
+      cp /home/UK_Bdiv23B_and_24B_analysis/24B_sorted-extracted-assembly/*.gz
+
+  - description: Map non-host reads to B. divergens reference index for Bdiv23B
+    command: |
+      bowtie2 -q -x GCA_018398725_1987_GCA_001077455-_1802A_bowtie2indx -1 apha-2023-23B_unmapped_R1.fq.gz -2 apha-2023-23B_unmapped_R2.fq.gz -S both_bdivx2_aphabl23_R1_R2_mapped_unmapped.sam --threads 6 && \
+      samtools view -bS both_bdivx2_aphabl23_R1_R2_mapped_unmapped.sam > both_bdivx2_aphabl23_R1_R2_mapped_unmapped.bam && \
+      samtools view -b -F 4 both_bdivx2_aphabl23_R1_R2_mapped_unmapped.bam > both_bdivx2_aphabl23_R1_R2_mapped.bam && \
+      samtools sort -n -m 4G -@ 2 both_bdivx2_aphabl23_R1_R2_mapped.bam -o both_bdivx2_aphabl23_R1_R2_mapped.sorted.bam && \
+      samtools fastq -@ 8 both_bdivx2_aphabl23_R1_R2_mapped.sorted.bam -1 23_Bdiv_mapped_R1.fq.gz -2 23_Bdiv_mapped_R2.fq.gz
+
+   -description: Map non-host reads to B. divergens reference index for Bdiv24B reads
+  steps:
+    - command: |
+        bowtie2 -q -x GCA_018398725_1987_GCA_001077455-_1802A_bowtie2indx \
+        -1 apha-2023-24B_unmapped_R1.fq.gz \
+        -2 apha-2023-24B_unmapped_R2.fq.gz \
+        -S both_bdivx2_aphabl24_R1_R2_mapped_unmapped.sam \
+        --threads 6 && \
+        samtools view -bS both_bdivx2_aphabl24_R1_R2_mapped_unmapped.sam > both_bdivx2_aphabl24_R1_R2_mapped_unmapped.bam && \
+        samtools view -b -F 4 both_bdivx2_aphabl24_R1_R2_mapped_unmapped.bam > both_bdivx2_aphabl24_R1_R2_mapped.bam && \
+        samtools sort -n -m 4G -@ 2 both_bdivx2_aphabl24_R1_R2_mapped.bam -o both_bdivx2_aphabl24_R1_R2_mapped.sorted.bam && \
+        samtools fastq -@ 8 both_bdivx2_aphabl24_R1_R2_mapped.sorted.bam \
+        -1 24_Bdiv_mapped_R1.fq.gz -2 24_Bdiv_mapped_R2.fq.gz
+      
+    - description: Fix mapped paired-end reads using repair.sh for Bdiv23B
+      command: |
+        repair.sh in=23_Bdiv_mapped_R1.fq.gz \
+        in2=23_Bdiv_mapped_R2.fq.gz \
+        out=23_Bdiv_fixed_R_1.fastq.gz \
+        out2=23_Bdiv_fixed_R_2.fastq.gz \
+        outs=23_Bdiv_fixed_singleton_output.fastq.gz
+
+    - description: Fix mapped paired-end reads using repair.sh for Bdiv24B
+      command: |
+        repair.sh in=24_Bdiv_mapped_R1.fq.gz \
+        in2=24_Bdiv_mapped_R2.fq.gz \
+        out=24_Bdiv_fixed_R_1.fastq.gz \
+        out2=24_Bdiv_fixed_R_2.fastq.gz \
+        outs=24_Bdiv_fixed_singleton_output.fastq.gz
+
+    - description:"Assemble both reads with SPAdes using default parameters for Bdiv23B
+      command: |
+        spades.py -1 23_Bdiv_fixed_R_1.fastq.gz \
+        -2 23_Bdiv_fixed_R_2.fastq.gz \
+        -s 23_Bdiv_fixed_singleton_output.fastq.gz \
+        -o fixed_spades_BL23B_mapped_to_bothBdiv_GCA_018398725_and_GCA_001077455 \
+        -t 10
+
+    - description: Assemble both reads with SPAdes using default parameters for Bdiv24B
+      command: |
+        spades.py -1 24_Bdiv_fixed_R_1.fastq.gz \
+        -2 24_Bdiv_fixed_R_2.fastq.gz \
+        -s 24_Bdiv_fixed_singleton_output.fastq.gz \
+        -o fixed_spades_BL24B_mapped_to_bothBdiv_GCA_018398725_and_GCA_001077455 \
+        -t 10
+
+    - description: Filter and extract contigs ≥ 500 bp from Bdiv23B assembly using SeqKit
+      command: |
+        cd fixed_spades_BL23B_mapped_to_bothBdiv_GCA_018398725_and_GCA_001077455/ && \
+        seqkit seq -m 500 contigs.fasta > Bdiv23B.fa
+
+    - description: Filter and extract contigs ≥ 500 bp from Bdiv24B assembly using SeqKit
+      command: |
+        cd fixed_spades_BL24B_mapped_to_bothBdiv_GCA_018398725_and_GCA_001077455/ && \
+        seqkit seq -m 500 contigs.fasta > Bdiv24B.fa
+
+    - description: Identify B. divergens contigs using spray-and-pray.py tool
+      command: |
+        spray-and-pray.py -g Bdiv23B.fa -out Bdiv23B_sprayandpray -ref /home/nr.gz/nr.gz -t 8
+        spray-and-pray.py -g Bdiv24B.fa -out Bdiv24B_sprayandpray -ref /home/nr.gz/nr.gz -t 8
+
+    - description: Quality evaluation using QUAST on assembled genomes
+      command: |
+        quast.py Bdiv23B.fa Bdiv24B.fa \
+        -r Bdiv1987_GCA001077455v2.fasta \
+        -g Bdiv1987_GCA001077455v2.gff \
+        --pe1 23_Bdiv_fixed_R_1.fastq.gz \
+        --pe2 23_Bdiv_fixed_R_2.fastq.gz \
+        --pe1 24_Bdiv_fixed_R_1.fastq.gz \
+        --pe2 24_Bdiv_fixed_R_2.fastq.gz \
+        --single 23_Bdiv_fixed_singleton_output.fastq.gz \
+        --single 24_Bdiv_fixed_singleton_output.fastq.gz \
+        -o quast_Bdiv23B_Bdiv24B_Bdivref_1987v2_output \
+        --eukaryote --circos --glimmer \
+        --labels Bdiv23,Bdiv24 --rna-finding --conserved-genes-finding -t 16
